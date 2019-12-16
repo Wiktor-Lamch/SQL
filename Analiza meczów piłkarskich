@@ -1,3 +1,14 @@
+Na podstawie powyższych danych uzyskać dla każdego kraju i ligi:
+
+a.dominujący końcowy wynik spotkania(FT)i wynik pierwszej połowy(HT),
+b.(jeśli jest jedentaki zespół)zespół najczęściej wygrywający spotkania,
+c.(jeśli jest jedentaki zespół)zespół najczęściej wygrywający po pierwszej połowie,
+d.(jeśli jest jedentaki zespół)zespół,który uzyskał największą przewagę punktową (liczoną jako różnica w liczbie goli w ciągu jednego spotkania) nad przeciwnikiem w historii rozgrywek, dzień tygodnia i datę rozegrania tego spotkania.
+e.(jeśli jest jeden)zespół, który rozegrał najwięcej spotkań w historii rozgrywek,
+f.liczba pojedynczych spotkań w całym zbiorze
+
+
+
 CREATE TABLE data
 (Country VARCHAR(40),
 League VARCHAR(40),
