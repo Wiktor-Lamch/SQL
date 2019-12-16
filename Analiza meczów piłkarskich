@@ -1,0 +1,244 @@
+CREATE TABLE data
+(Country VARCHAR(40),
+League VARCHAR(40),
+MatchDate VARCHAR(40),
+Team1 VARCHAR(40),
+FT VARCHAR(40),
+FT_Team1 INT null,
+FT_Team2 INT null,
+HT VARCHAR(40),
+HT_Team1 INT null,
+HT_Team2 INT null,
+Team2 VARCHAR(40)
+)
+
+-- Należy zamienić ścieżkę do pliku na odpowiednią
+
+BULK
+INSERT data
+FROM 'C:\Users\Kamil\Desktop\Zadanie_STS2\data.csv'
+WITH
+(
+FIELDTERMINATOR = ',',
+ROWTERMINATOR = '\n',
+KEEPNULLS,
+DATAFILETYPE = 'char'
+)
+
+update data set Country='germany' where Country like 'deutschland'
+update data set Country='spain' where Country like 'espana'
+
+CREATE INDEX [CLT1T2] ON [dbo].[data] (Country,League,Team1, Team2)
+
+
+-- mode.winning.score.FT
+
+
+select Country+League as id, Country, League, FT as 'mode.winning.score.FT'
+into #a1
+from
+(select *, max(number) over(partition by Country, League) as maximum
+from
+(select Country, League, FT, count(FT) as number
+from data
+group by Country, League, FT) as a) as b
+where number = maximum
+
+
+-- mode.winning.score.HT
+
+select Country+League as id, Country, League, HT as 'mode.winning.score.HT'
+into #a2
+from
+(select *, max(number) over(partition by Country, League) as maximum
+from
+(select Country, League, HT, count(HT) as number
+from data
+group by Country, League, HT) as a) as b
+where number = maximum
+
+-- mode.winning.team.FT
+
+select Country+League as id, Country, League, Team as 'mode.winning.team.FT'
+into #b
+from
+(
+select *, max(Wins) over(partition by Country, League) as Maximum
+from
+(
+select Country, League, Team, sum(win) as Wins
+from
+
+(select Country, League, Team1 as Team,
+	case
+	when FT_Team1 - FT_Team2 > 0 then 1
+	else 0
+	end as win
+from data
+
+union all
+
+select Country, League, Team2 as Team,
+	case
+	when FT_Team2 - FT_Team1 > 0 then 1
+	else 0
+	end as win
+from data
+) as a
+group by Country, League, Team
+) as b
+) as c
+where Wins = Maximum
+
+-- mode.winning.team.HT
+
+select distinct Country+League as id, Country, League, 
+		case when Team_numbers = 1 then Team
+		else null
+		end as 'mode.winning.team.HT'
+into #c
+from
+(
+select *, count(*) over(partition by Country, League) as Team_numbers
+from
+(
+select *, max(Wins) over(partition by Country, League) as Maximum
+from
+(
+select Country, League, Team, sum(win) as Wins
+from
+
+(select Country, League, Team1 as Team,
+	case
+	when HT_Team1 - HT_Team2 > 0 then 1
+	else 0
+	end as win
+from data
+
+union all
+
+select Country, League, Team2 as Team,
+	case
+	when HT_Team2 - HT_Team1 > 0 then 1
+	else 0
+	end as win
+from data
+) as a
+group by Country, League, Team
+) as b
+) as c
+where Wins = Maximum
+) as d
+
+-- highest domination team $ date
+
+select Country+League as id, Country, League, [highest.domination.team], [highest.domination.date]
+into #d
+from
+(
+select Country, League, [highest.domination.team], number,
+	case when number = 2 then
+ [highest.domination.date] + ' & ' + LEAD([highest.domination.date]) over(partition by Country, League, [highest.domination.team]
+  order by Country, League, [highest.domination.team])
+  else [highest.domination.date]
+  end as 'highest.domination.date'
+  from
+(
+select *, count(*) over(partition by Country, League) as number	
+from
+(
+select distinct Country, League,
+		case when num_of_teams = 1 or (num_of_teams = num_of_max_win_team) then Team
+		else null
+		end as 'highest.domination.team',
+
+		case when num_of_teams = 1 or (num_of_teams = num_of_max_win_team) then MatchDate
+		else null
+		end as 'highest.domination.date'		
+from
+(
+ select *, count(MatchDate) over(partition by Country, League, Team) as num_of_max_win_team
+from
+(
+select *, count(Team) over(partition by Country, League) as num_of_teams
+from
+(
+select *
+from
+(
+select *, max(diff_goals) over(partition by Country, League) as maximum
+from
+(
+select Country, League, Team1 as Team, MatchDate, FT_Team1 - FT_Team2 as diff_goals
+from data
+
+union all
+
+select Country, League, Team2 as Team, MatchDate, FT_Team2 - FT_Team1 as diff_goals
+from data
+) as a
+) as b
+where diff_goals = maximum
+) as c
+) as d
+) as e
+) as f
+) as g
+) as h
+where not(number = 2 and [highest.domination.date] is null)
+
+
+-- team.highest.count.of.matches.Team
+
+select distinct Country+League as id, Country, League, 
+		case when number_of_team = 1 then Team
+		else null
+		end as 'team.highest.count.of.matches.Team'
+into #e
+from
+(
+select *, count(Team) over(partition by Country, League) as number_of_team
+from
+(
+select *, max(number_of_matches) over(partition by Country, League) as maximum
+from
+(
+select *, count(Team) as number_of_matches
+from
+(
+select Country, League, Team1 as Team
+from data
+
+union all
+
+select Country, League, Team2 as Team
+from data
+) as a
+group by Country, League, Team
+) as b
+) as c
+where number_of_matches = maximum
+) as d
+order by Country, League
+
+-- count.of.matches
+
+select Country+League as id, Country, League, count(*) as 'count.of.matches'
+into #f
+from data
+group by Country, League
+
+
+-- Result
+
+select #a1.Country, #a2.League, [mode.winning.score.FT], [mode.winning.score.HT],
+		[mode.winning.team.FT], [mode.winning.team.HT], [highest.domination.team],
+		[highest.domination.date], [team.highest.count.of.matches.Team],
+		[count.of.matches]		
+from #a1 join #a2 on #a1.id = #a2.id
+	 join #b on #b.id = #a2.id
+	 join #c on #c.id = #b.id
+	 join #d on #d.id = #c.id
+	 join #e on #e.id = #d.id
+	 join #f on #f.id = #e.id
+order by Country, League
